@@ -1,0 +1,2 @@
+# Ansible-Ubuntu-Starter
+Ansible初心者でも安心！対話形式のジェネレーターで、安全にUbuntu Serverの初期設定を完了させるためのAnsibleプロジェクト
