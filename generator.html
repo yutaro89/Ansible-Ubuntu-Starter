@@ -6,12 +6,13 @@
     <style>
         body { font-family: sans-serif; line-height: 1.6; max-width: 800px; margin: 20px auto; padding: 0 15px; background-color: #f4f4f9; }
         .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h1, h2 { color: #333; border-bottom: 2px solid #6c757d; padding-bottom: 10px;}
+        h1, h2, h3 { color: #333; border-bottom: 2px solid #6c757d; padding-bottom: 10px;}
+        h3 { border-bottom-style: dotted; }
         label { display: block; margin-top: 15px; font-weight: bold; color: #555; }
         input[type="text"] { width: 95%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; }
         button { display: block; width: 100%; padding: 12px; margin-top: 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
         button:hover { background-color: #0056b3; }
-        textarea { width: 95%; height: 180px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; white-space: pre; font-family: monospace; }
+        textarea { width: 95%; height: 200px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; white-space: pre; font-family: monospace; }
         .note { font-size: 0.9em; color: #6c757d; }
     </style>
 </head>
@@ -25,7 +26,7 @@
         <label for="initial_ip">① 初期IPアドレス (DHCPなどで取得した一時的なIP)</label>
         <input type="text" id="initial_ip" placeholder="例: 192.168.1.150">
         
-        <label for="ansible_user">② 初期接続ユーザー (root または ubuntu)</label>
+        <label for="ansible_user">② 初期接続ユーザー (root, ubuntu, yutaro など)</label>
         <input type="text" id="ansible_user" value="root">
 
         <label for="static_ip">③ 設定したい固定IPアドレス (例: 192.168.1.100/24)</label>
@@ -114,7 +115,7 @@ ansible_user=${ansible_user}`;
             document.getElementById('output_playbook_ip').value = playbookIpContent;
             
             // playbook-main.yml を生成
-            const playbookMainContent = \`---
+            const playbookMainContent = `---
 - hosts: all
   become: yes
   vars:
@@ -158,13 +159,7 @@ ansible_user=${ansible_user}`;
         - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
         - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
       notify: "Restart sshd service"
-    # ... 他のタスクも同様に続く ...
-\`;
-            document.getElementById('output_playbook_main').value = playbookMainContent.replace('    # ... 他のタスクも同様に続く ...', getRemainingTasks());
-        }
-
-        function getRemainingTasks() {
-            return \`    - name: "TASK 5: Configure Firewall (UFW)"
+    - name: "TASK 5: Configure Firewall (UFW)"
       block:
         - community.general.ufw:
             rule: allow
@@ -206,12 +201,13 @@ ansible_user=${ansible_user}`;
         dest: /etc/apt/apt.conf.d/50unattended-upgrades
         content: |
           Unattended-Upgrade::Allowed-Origins {
-              "\${distro_id}:\${distro_codename}-security";
+              "${distro_id}:${distro_codename}-security";
           };
           Unattended-Upgrade::Package-Blacklist {
           };
           Unattended-Upgrade::Automatic-Reboot "true";
-          Unattended-Upgrade::Automatic-Reboot-Time "03:00";\`;
+          Unattended-Upgrade::Automatic-Reboot-Time "03:00";`;
+            document.getElementById('output_playbook_main').value = playbookMainContent;
         }
     </script>
 </body>
