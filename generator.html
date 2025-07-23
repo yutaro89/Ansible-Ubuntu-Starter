@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ansible設定ファイルジェネレーター</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; max-width: 800px; margin: 20px auto; padding: 0 15px; background-color: #f4f4f9; }
+        h1, h2 { color: #333; border-bottom: 2px solid #6c757d; padding-bottom: 10px;}
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;}
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        input[type="text"] { width: 95%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; }
+        button { display: block; width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #0056b3; }
+        textarea { width: 95%; height: 150px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; white-space: pre; font-family: monospace; }
+        .note { font-size: 0.9em; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <h1>Ansible設定ファイルジェネレーター</h1>
+
+    <div class="container">
+        <h2>サーバー情報入力</h2>
+        <p class="note">Ansibleで設定したいサーバーの情報を入力してください。</p>
+        <label for="initial_ip">① 初期IPアドレス (DHCPなどで取得した一時的なIP)</label>
+        <input type="text" id="initial_ip" placeholder="例: 192.168.1.150">
+        
+        <label for="ansible_user">② 初期接続ユーザー (root または ubuntu)</label>
+        <input type="text" id="ansible_user" value="root">
+
+        <label for="static_ip">③ 設定したい固定IPアドレス (例: 192.168.1.100/24)</label>
+        <input type="text" id="static_ip" placeholder="例: 192.168.1.100/24">
+        
+        <label for="gateway_ip">④ ゲートウェイIPアドレス</label>
+        <input type="text" id="gateway_ip" placeholder="例: 192.168.1.1">
+        
+        <label for="dns_servers">⑤ DNSサーバー (カンマ区切り)</label>
+        <input type="text" id="dns_servers" value="8.8.8.8, 1.1.1.1">
+
+        <button onclick="generateFiles()">設定ファイルを生成する</button>
+    </div>
+
+    <div class="container">
+        <h2>生成された設定ファイル</h2>
+        
+        <h3>inventory.ini</h3>
+        <p class="note">この内容をコピーして、`inventory.ini`ファイルとして保存してください。</p>
+        <textarea id="output_inventory" readonly></textarea>
+
+        <h3>playbook-ip.yml</h3>
+        <p class="note">この内容をコピーして、`playbook-ip.yml`ファイルとして保存してください。</p>
+        <textarea id="output_playbook" readonly></textarea>
+    </div>
+
+    <script>
+        function generateFiles() {
+            const initial_ip = document.getElementById('initial_ip').value;
+            const ansible_user = document.getElementById('ansible_user').value;
+            const static_ip = document.getElementById('static_ip').value;
+            const gateway_ip = document.getElementById('gateway_ip').value;
+            const dns_servers = document.getElementById('dns_servers').value;
+
+            // inventory.ini の生成
+            const inventoryContent = `[servers]
+# 初期IPアドレス
+${initial_ip}
+
+[servers:vars]
+ansible_user=${ansible_user}`;
+            document.getElementById('output_inventory').value = inventoryContent;
+
+            // playbook-ip.yml の生成
+            const playbookContent = `---
+- hosts: all
+  become: yes
+  vars:
+    static_ip: "${static_ip}"
+    gateway_ip: "${gateway_ip}"
+    dns_servers: "${dns_servers}"
+  tasks:
+    - name: Get active network interface
+      ansible.builtin.setup:
+        filter: ansible_default_ipv4.interface
+      register: net_interface
+    - name: Set static IP address using Netplan
+      ansible.netcommon.netplan:
+        state: present
+        path: /etc/netplan/01-netcfg.yaml
+        network:
+          version: 2
+          ethernets:
+            "{{ net_interface.ansible_facts.ansible_default_ipv4.interface }}":
+              dhcp4: no
+              addresses: [ "{{ static_ip }}" ]
+              gateway4: "{{ gateway_ip }}"
+              nameservers:
+                addresses: "{{ dns_servers.split(',') | map('trim') | list }}"
+      notify: Apply Netplan
+  handlers:
+    - name: Apply Netplan
+      ansible.builtin.command:
+        cmd: netplan apply`;
+            document.getElementById('output_playbook').value = playbookContent;
+        }
+    </script>
+</body>
+</html>

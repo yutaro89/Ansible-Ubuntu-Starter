@@ -1,0 +1,51 @@
+# playbook-ip.yml
+---
+- hosts: all
+  become: yes
+  gather_facts: no # ネットワーク情報取得前にfactsを収集しない
+
+  # ----------------------------------------------------------------
+  # vars_prompt を使って、実行時に対話形式で値を入力できます。
+  # `generator.html` を使わない場合は、この機能が便利です。
+  # ----------------------------------------------------------------
+  vars_prompt:
+    - name: "static_ip"
+      prompt: "サーバーに設定する固定IPアドレスとサブネットマスクを入力してください (例: 192.168.1.100/24)"
+      private: no
+    - name: "gateway_ip"
+      prompt: "ゲートウェイのIPアドレスを入力してください (例: 192.168.1.1)"
+      private: no
+    - name: "dns_servers"
+      prompt: "DNSサーバーのIPアドレスをカンマ区切りで入力してください (例: 8.8.8.8,1.1.1.1)"
+      private: no
+      default: "8.8.8.8,1.1.1.1"
+
+  tasks:
+    - name: "Gather network facts"
+      ansible.builtin.setup:
+        filter:
+          - "ansible_default_ipv4"
+      register: network_facts
+
+    - name: "Set static IP address using Netplan"
+      ansible.netcommon.netplan:
+        state: present
+        path: /etc/netplan/01-netcfg.yaml
+        network:
+          version: 2
+          ethernets:
+            "{{ network_facts.ansible_facts.ansible_default_ipv4.interface }}":
+              dhcp4: no
+              addresses:
+                - "{{ static_ip }}"
+              routes:
+                - to: default
+                  via: "{{ gateway_ip }}"
+              nameservers:
+                addresses: "{{ dns_servers.split(',') | map('trim') | list }}"
+      notify: "Apply Netplan configuration"
+
+  handlers:
+    - name: "Apply Netplan configuration"
+      ansible.builtin.command:
+        cmd: netplan apply
