@@ -1,0 +1,8 @@
+---
+- hosts: all
+  become: yes
+  vars:
+    admin_user: "myadmin"
+    swap_file_size: "2G"
+  tasks:
+    # ... (タスク内容はgeneratorが出力するものと同じ)

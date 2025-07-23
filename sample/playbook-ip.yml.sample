@@ -1,0 +1,9 @@
+---
+- hosts: all
+  become: yes
+  vars:
+    static_ip: "192.168.1.100/24"
+    gateway_ip: "192.168.1.1"
+    dns_servers: "8.8.8.8,1.1.1.1"
+  tasks:
+    # ... (タスク内容はgeneratorが出力するものと同じ)

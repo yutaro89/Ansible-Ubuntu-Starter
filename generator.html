@@ -2,26 +2,26 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ansible設定ファイルジェネレーター</title>
+    <title>Ansible Starter Kit Generator</title>
     <style>
         body { font-family: sans-serif; line-height: 1.6; max-width: 800px; margin: 20px auto; padding: 0 15px; background-color: #f4f4f9; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h1, h2 { color: #333; border-bottom: 2px solid #6c757d; padding-bottom: 10px;}
-        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px;}
-        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
-        input[type="text"] { width: 95%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; }
-        button { display: block; width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        label { display: block; margin-top: 15px; font-weight: bold; color: #555; }
+        input[type="text"] { width: 95%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; }
+        button { display: block; width: 100%; padding: 12px; margin-top: 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
         button:hover { background-color: #0056b3; }
-        textarea { width: 95%; height: 150px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; white-space: pre; font-family: monospace; }
+        textarea { width: 95%; height: 180px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; white-space: pre; font-family: monospace; }
         .note { font-size: 0.9em; color: #6c757d; }
     </style>
 </head>
 <body>
-    <h1>Ansible設定ファイルジェネレーター</h1>
+    <h1>Ansible Starter Kit Generator</h1>
 
     <div class="container">
         <h2>サーバー情報入力</h2>
-        <p class="note">Ansibleで設定したいサーバーの情報を入力してください。</p>
+        <p class="note">Ansibleで設定したいサーバーの情報をすべて入力してください。</p>
+        
         <label for="initial_ip">① 初期IPアドレス (DHCPなどで取得した一時的なIP)</label>
         <input type="text" id="initial_ip" placeholder="例: 192.168.1.150">
         
@@ -35,7 +35,13 @@
         <input type="text" id="gateway_ip" placeholder="例: 192.168.1.1">
         
         <label for="dns_servers">⑤ DNSサーバー (カンマ区切り)</label>
-        <input type="text" id="dns_servers" value="8.8.8.8, 1.1.1.1">
+        <input type="text" id="dns_servers" value="8.8.8.8,1.1.1.1">
+        
+        <label for="admin_user">⑥ 作成する新しい管理者ユーザー名</label>
+        <input type="text" id="admin_user" value="myadmin">
+        
+        <label for="swap_size">⑦ 作成するスワップファイルサイズ</label>
+        <input type="text" id="swap_size" value="2G">
 
         <button onclick="generateFiles()">設定ファイルを生成する</button>
     </div>
@@ -44,33 +50,36 @@
         <h2>生成された設定ファイル</h2>
         
         <h3>inventory.ini</h3>
-        <p class="note">この内容をコピーして、`inventory.ini`ファイルとして保存してください。</p>
         <textarea id="output_inventory" readonly></textarea>
 
         <h3>playbook-ip.yml</h3>
-        <p class="note">この内容をコピーして、`playbook-ip.yml`ファイルとして保存してください。</p>
-        <textarea id="output_playbook" readonly></textarea>
+        <textarea id="output_playbook_ip" readonly></textarea>
+        
+        <h3>playbook-main.yml</h3>
+        <textarea id="output_playbook_main" readonly></textarea>
     </div>
 
     <script>
         function generateFiles() {
+            // フォームから値を取得
             const initial_ip = document.getElementById('initial_ip').value;
             const ansible_user = document.getElementById('ansible_user').value;
             const static_ip = document.getElementById('static_ip').value;
             const gateway_ip = document.getElementById('gateway_ip').value;
             const dns_servers = document.getElementById('dns_servers').value;
+            const admin_user = document.getElementById('admin_user').value;
+            const swap_size = document.getElementById('swap_size').value;
 
-            // inventory.ini の生成
+            // inventory.ini を生成
             const inventoryContent = `[servers]
-# 初期IPアドレス
 ${initial_ip}
 
 [servers:vars]
 ansible_user=${ansible_user}`;
             document.getElementById('output_inventory').value = inventoryContent;
 
-            // playbook-ip.yml の生成
-            const playbookContent = `---
+            // playbook-ip.yml を生成
+            const playbookIpContent = `---
 - hosts: all
   become: yes
   vars:
@@ -78,11 +87,11 @@ ansible_user=${ansible_user}`;
     gateway_ip: "${gateway_ip}"
     dns_servers: "${dns_servers}"
   tasks:
-    - name: Get active network interface
+    - name: "Get active network interface"
       ansible.builtin.setup:
-        filter: ansible_default_ipv4.interface
+        filter: ["ansible_default_ipv4"]
       register: net_interface
-    - name: Set static IP address using Netplan
+    - name: "Set static IP address using Netplan"
       ansible.netcommon.netplan:
         state: present
         path: /etc/netplan/01-netcfg.yaml
@@ -91,16 +100,118 @@ ansible_user=${ansible_user}`;
           ethernets:
             "{{ net_interface.ansible_facts.ansible_default_ipv4.interface }}":
               dhcp4: no
-              addresses: [ "{{ static_ip }}" ]
-              gateway4: "{{ gateway_ip }}"
+              addresses: ["{{ static_ip }}"]
+              routes:
+                - to: default
+                  via: "{{ gateway_ip }}"
               nameservers:
                 addresses: "{{ dns_servers.split(',') | map('trim') | list }}"
-      notify: Apply Netplan
+      notify: "Apply Netplan"
   handlers:
-    - name: Apply Netplan
+    - name: "Apply Netplan"
       ansible.builtin.command:
         cmd: netplan apply`;
-            document.getElementById('output_playbook').value = playbookContent;
+            document.getElementById('output_playbook_ip').value = playbookIpContent;
+            
+            // playbook-main.yml を生成
+            const playbookMainContent = \`---
+- hosts: all
+  become: yes
+  vars:
+    admin_user: "${admin_user}"
+    swap_file_size: "${swap_size}"
+  handlers:
+    - name: "Restart sshd service"
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
+  tasks:
+    - name: "TASK 1: Update and upgrade apt packages"
+      ansible.builtin.apt:
+        update_cache: yes
+        upgrade: "dist"
+        autoremove: yes
+    - name: "TASK 2: Install essential packages"
+      ansible.builtin.apt:
+        name: [ufw, fail2ban, unattended-upgrades, language-pack-ja]
+        state: present
+    - name: "TASK 3: Create a new admin user and set up SSH key"
+      block:
+        - ansible.builtin.user:
+            name: "{{ admin_user }}"
+            state: present
+            groups: "sudo"
+            append: yes
+            shell: /bin/bash
+        - ansible.posix.authorized_key:
+            user: "{{ admin_user }}"
+            key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+            state: present
+            mode: '0600'
+    - name: "TASK 4: Harden SSH configuration"
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        validate: "sshd -t -f %s"
+      loop:
+        - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+        - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+      notify: "Restart sshd service"
+    # ... 他のタスクも同様に続く ...
+\`;
+            document.getElementById('output_playbook_main').value = playbookMainContent.replace('    # ... 他のタスクも同様に続く ...', getRemainingTasks());
+        }
+
+        function getRemainingTasks() {
+            return \`    - name: "TASK 5: Configure Firewall (UFW)"
+      block:
+        - community.general.ufw:
+            rule: allow
+            name: OpenSSH
+        - community.general.ufw:
+            state: enabled
+            policy: deny
+    - name: "TASK 6: Set timezone and locale"
+      block:
+        - community.general.timezone:
+            name: Asia/Tokyo
+        - ansible.builtin.command:
+            cmd: "localectl set-locale LANG=ja_JP.UTF-8"
+          changed_when: false
+    - name: "TASK 7: Create a swap file"
+      block:
+        - ansible.builtin.stat:
+            path: /swapfile
+          register: swap_file_check
+        - ansible.builtin.command:
+            cmd: "fallocate -l {{ swap_file_size }} /swapfile"
+          when: not swap_file_check.stat.exists
+        - ansible.builtin.file:
+            path: /swapfile
+            mode: '0600'
+          when: not swap_file_check.stat.exists
+        - ansible.builtin.command:
+            cmd: "mkswap /swapfile"
+          when: not swap_file_check.stat.exists
+        - ansible.builtin.command:
+            cmd: "swapon /swapfile"
+          when: not swap_file_check.stat.exists
+        - ansible.builtin.lineinfile:
+            path: /etc/fstab
+            line: "/swapfile none swap sw 0 0"
+            create: yes
+    - name: "TASK 8: Configure automatic security updates"
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/50unattended-upgrades
+        content: |
+          Unattended-Upgrade::Allowed-Origins {
+              "\${distro_id}:\${distro_codename}-security";
+          };
+          Unattended-Upgrade::Package-Blacklist {
+          };
+          Unattended-Upgrade::Automatic-Reboot "true";
+          Unattended-Upgrade::Automatic-Reboot-Time "03:00";\`;
         }
     </script>
 </body>
